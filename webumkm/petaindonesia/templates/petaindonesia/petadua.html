@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peta Jabodetabek</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        header {
+            padding: 10px 16px;
+            background: #0b4371;
+            color: #ffffff;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        #map {
+            height: calc(100vh - 43px);
+            width: 100%;
+        }
+
+        /* Panel Pilih Kota */
+        .panel-kota {
+            background: #ffffff;
+            padding: 10px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            min-width: 120px;
+        }
+        .panel-kota h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            font-weight: 700;
+            color: #111111;
+        }
+        .panel-kota button {
+            display: block;
+            width: 100%;
+            padding: 5px 8px;
+            margin-bottom: 5px;
+            background: #ffffff;
+            border: 1px solid #c9c9c9;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #222222;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .panel-kota button:hover {
+            background: #eef3f8;
+            border-color: #888888;
+        }
+        .panel-kota button:last-child {
+            margin-bottom: 0;
+            font-weight: 600;
+        }
+    </style>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+    <header>
+        <h1>Peta Jabodetabek: Jakarta, Bogor, Depok, Tangerang, Bekasi</h1>
+    </header>
+    <div id="map"></div>
+
+    <script>
+        // Data 5 kota Jabodetabek sesuai instruksi
+        const dataKota = [
+            { nama: "Jakarta", koordinat: [-6.2088, 106.8456], zoom: 12, arahTooltip: "right" },
+            { nama: "Bogor", koordinat: [-6.5971, 106.8060], zoom: 12, arahTooltip: "right" },
+            { nama: "Depok", koordinat: [-6.4025, 106.7942], zoom: 12, arahTooltip: "right" },
+            { nama: "Tangerang", koordinat: [-6.1783, 106.6319], zoom: 12, arahTooltip: "left" },
+            { nama: "Bekasi", koordinat: [-6.2383, 106.9756], zoom: 12, arahTooltip: "right" }
+        ];
+
+        // Inisialisasi peta berpusat di wilayah Jabodetabek
+        const map = L.map("map").setView([-6.35, 106.85], 10);
+
+        // 1. Basemap OpenStreetMap
+        const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // 2. Basemap alternatif: Citra Satelit Esri
+        const satelit = L.tileLayer(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            { maxZoom: 19, attribution: "Tiles &copy; Esri" }
+        );
+
+        // 3. Tambahkan marker dan label permanen untuk masing-masing kota
+        const markersGroup = L.featureGroup();
+        const markerMap = {};
+
+        dataKota.forEach((kota) => {
+            const marker = L.marker(kota.koordinat)
+                .bindTooltip(kota.nama, {
+                    permanent: true,
+                    direction: kota.arahTooltip,
+                    offset: kota.arahTooltip === "left" ? [-10, 0] : [10, 0]
+                })
+                .bindPopup(`<b>${kota.nama}</b><br>Wilayah Jabodetabek<br>Lat: ${kota.koordinat[0]}, Lng: ${kota.koordinat[1]}`);
+
+            markerMap[kota.nama] = { marker: marker, ...kota };
+            markersGroup.addLayer(marker);
+        });
+
+        markersGroup.addTo(map);
+
+        // Sesuaikan batas pandang peta awal agar mencakup semua marker
+        map.fitBounds(markersGroup.getBounds().pad(0.15));
+
+        // 4. Kontrol pilihan layer basemap
+        L.control.layers(
+            { "OpenStreetMap": osm, "Citra Satelit": satelit },
+            null,
+            { position: "topright" }
+        ).addTo(map);
+
+        // 5. Kontrol skala di kiri bawah
+        L.control.scale({ imperial: false, position: "bottomleft" }).addTo(map);
+
+        // 6. Panel Kustom: Pilih Kota
+        const panelPilihKota = L.control({ position: "topright" });
+
+        panelPilihKota.onAdd = function () {
+            const div = L.DomUtil.create("div", "panel-kota");
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.disableScrollPropagation(div);
+
+            div.innerHTML = "<h4>Pilih kota</h4>";
+
+            dataKota.forEach((kota) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.innerText = kota.nama;
+                btn.onclick = function () {
+                    map.flyTo(kota.koordinat, kota.zoom, { duration: 1.2 });
+                    markerMap[kota.nama].marker.openPopup();
+                };
+                div.appendChild(btn);
+            });
+
+            // Tombol "Tampilkan semua" untuk zoom-out ke seluruh Jabodetabek
+            const btnAll = document.createElement("button");
+            btnAll.type = "button";
+            btnAll.innerText = "Tampilkan semua";
+            btnAll.onclick = function () {
+                map.flyToBounds(markersGroup.getBounds().pad(0.15), { duration: 1.2 });
+            };
+            div.appendChild(btnAll);
+
+            return div;
+        };
+
+        panelPilihKota.addTo(map);
+    </script>
+</body>
+</html>
