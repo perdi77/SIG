@@ -16,7 +16,7 @@ def get_kedalaman_info(kedalaman_str):
     - Menengah: 70 - 300 km (Warna Oranye: #f59e0b)
     - Dalam: > 300 km (Warna Hijau: #10b981)
     """
-    match = re.search(r"(\d+(?:\.\d+)?)", kedalaman_str)
+    match = re.search(r"(\d+(?:\.\d+)?)", str(kedalaman_str or ""))
     km = float(match.group(1)) if match else 10.0
 
     if km < 70:
@@ -68,6 +68,12 @@ def gempaterkini(request):
             except Exception:
                 raw_gempa = []
 
+    # Normalisasi tipe data raw_gempa jika berupa objek tunggal
+    if isinstance(raw_gempa, dict):
+        raw_gempa = [raw_gempa]
+    elif not isinstance(raw_gempa, list):
+        raw_gempa = []
+
     # 3. Proses 15 data gempa untuk template dan peta
     gempa_list = []
     for idx, item in enumerate(raw_gempa[:15]):
@@ -75,11 +81,25 @@ def gempaterkini(request):
         
         # Koordinat [lat, lng]
         coords_str = item.get("Coordinates", "0,0")
+        lat, lng = 0.0, 0.0
         try:
             parts = [float(x.strip()) for x in coords_str.split(",")]
             lat, lng = parts[0], parts[1]
         except Exception:
             lat, lng = 0.0, 0.0
+
+        # Fallback jika parsing Coordinates bernilai 0, coba parse dari Lintang dan Bujur
+        if lat == 0.0 and lng == 0.0:
+            lintang_str = item.get("Lintang", "")
+            bujur_str = item.get("Bujur", "")
+            m_lat = re.search(r"(\d+(?:\.\d+)?)\s*(LU|LS)?", lintang_str)
+            m_lng = re.search(r"(\d+(?:\.\d+)?)\s*(BT|BB)?", bujur_str)
+            if m_lat:
+                val_lat = float(m_lat.group(1))
+                lat = -val_lat if m_lat.group(2) == "LS" else val_lat
+            if m_lng:
+                val_lng = float(m_lng.group(1))
+                lng = -val_lng if m_lng.group(2) == "BB" else val_lng
 
         try:
             mag_val = float(item.get("Magnitude", 5.0))
